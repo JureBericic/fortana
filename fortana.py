@@ -6,7 +6,8 @@ from __future__ import division, print_function
 import os
 
 
-fldr = '/home/jure/programming/mc_shms_single'
+root_folder = '/home/jure/programming/mc_shms_single'
+output_folder = 'analysis'
 
 fortextensions = set(['.f', '.inc'])
 commentmarks = set(['C', 'D', '*', '!'])
@@ -15,7 +16,7 @@ commentmarks = set(['C', 'D', '*', '!'])
 # Get all Fortan files in project directory.
 fortfiles = []
 
-for dirpath, dirnames, filenames in os.walk(fldr):
+for dirpath, dirnames, filenames in os.walk(root_folder):
     # Skip git directory.
     if '.git' in dirnames:
         dirnames.remove('.git')
@@ -23,24 +24,9 @@ for dirpath, dirnames, filenames in os.walk(fldr):
     fortfiles.extend([
         os.path.join(dirpath, filename)
         for filename in filenames
-        if os.path.splitext(filename)[1].lower() in fortextensions
+        if (os.path.splitext(filename)[1].lower() in fortextensions) and
+        ('_sub' not in filename)
         ])
-
-
-def defines_function(line_up_tok):
-    if 'FUNCTION' not in line_up_tok:
-        return False
-
-    i = line_up_tok.index('FUNCTION')
-
-    if line_up_tok[0] in commentmarks:
-        return False
-
-    for token in line_up_tok[i]:
-        if '!' in token:
-            return False
-
-    return True
 
 
 # Get all programs, subroutines and functions defined in project.
@@ -50,16 +36,17 @@ functions = []
 
 for fortfile in fortfiles:
     with open(fortfile, 'r') as fi:
+        rel_path = os.path.relpath(fortfile, root_folder)
         for line in fi:
             line_up_tok = line.upper().split()
             if line_up_tok == [] or line_up_tok[0][0] in commentmarks:
                 continue
 
             if line_up_tok[0] == 'PROGRAM':
-                programs.append([line_up_tok[1], fortfile])
+                programs.append([line_up_tok[1], rel_path])
 
             elif line_up_tok[0] == 'SUBROUTINE':
-                subroutines.append([line_up_tok[1].split('(')[0], fortfile])
+                subroutines.append([line_up_tok[1].split('(')[0], rel_path])
 
             elif 'FUNCTION' in line_up_tok:
                 i = line_up_tok.index('FUNCTION')
@@ -71,15 +58,32 @@ for fortfile in fortfiles:
                         continue
                 if not comment:
                     functions.append([
-                        line_up_tok[i+1].split('(')[0], fortfile])
+                        line_up_tok[i+1].split('(')[0], rel_path])
 
 
-#for program in programs:
-#    print(program)
-#for subroutine in subroutines:
-#    print(subroutine)
-#for function in functions:
-#    print(function)
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+
+
+with open(os.path.join(output_folder, 'list.txt'), 'w') as fo:
+    fo.write('Programs:\n')
+    fo.write('=========\n')
+    for program in sorted(programs):
+        fo.write('{} : {}\n'.format(program[0], program[1]))
+    fo.write('\n')
+
+    fo.write('Subroutines:\n')
+    fo.write('============\n')
+    for subroutine in sorted(subroutines):
+        fo.write('{} : {}\n'.format(subroutine[0], subroutine[1]))
+    fo.write('\n')
+
+    fo.write('Functions:\n')
+    fo.write('==========\n')
+    for function in sorted(functions):
+        fo.write('{} : {}\n'.format(function[0], function[1]))
+    fo.write('\n')
+
 
 
 print('\nDone.')
